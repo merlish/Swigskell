@@ -1,6 +1,6 @@
 #!/bin/bash
-rm Testing.cs
-rm TestingPINVOKE.cs
+rm TestingCpp.cs
+rm TestingCppPINVOKE.cs
 rm SWIGTYPE_p_namespace.cs
-rm testing_wrap.cs
-
+rm testing_wrap.cxx
+rm *.cs

@@ -1,2 +1,2 @@
-../build/bin/swig -haskell -module Testing testing.h
+../build/bin/swig -c++ -haskell -module TestingCpp testing.h
 
