@@ -1,0 +1,16 @@
+.deps
+Makefile
+config.log
+config.status
+CCache/ccache_swig_config.h
+CCache/config.h
+Lib/ocaml/swigp4.ml
+Source/Include/stamp-h1
+Source/Include/swigconfig.h
+preinst-swig
+swig.spec
+*.o
+CCache/ccache-swig
+.dirstamp
+Source/eswig
+swig

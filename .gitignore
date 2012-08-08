@@ -1,0 +1,9 @@
+.DS_Store
+no-commit/
+*.swo
+*.un~
+*.swp
+*.swn
+.deps
+swig-haskell/*Makefile*
+
