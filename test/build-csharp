@@ -1,0 +1,2 @@
+../build/bin/swig -csharp -module Testing testing.h
+

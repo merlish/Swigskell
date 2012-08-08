@@ -1,0 +1,2 @@
+../build/bin/swig -haskell -module Testing testing.h
+
