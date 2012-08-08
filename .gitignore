@@ -4,6 +4,4 @@ no-commit/
 *.un~
 *.swp
 *.swn
-.deps
-swig-haskell/*Makefile*
-
+build/
