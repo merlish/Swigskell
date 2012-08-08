@@ -14,3 +14,5 @@ CCache/ccache-swig
 .dirstamp
 Source/eswig
 swig
+autom4te.cache
+*.in~

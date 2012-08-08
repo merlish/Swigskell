@@ -53,6 +53,7 @@ extern "C" {
   Language *swig_r(void);
   Language *swig_go(void);
   Language *swig_d(void);
+  Language *swig_haskell(void);
 }
 
 struct swig_module {
@@ -74,6 +75,7 @@ static swig_module modules[] = {
   {"-d", swig_d, "D"},
   {"-go", swig_go, "Go"},
   {"-guile", swig_guile, "Guile"},
+  {"-haskell", swig_haskell, "Haskell (experimental)"},
   {"-java", swig_java, "Java"},
   {"-lua", swig_lua, "Lua"},
   {"-modula3", swig_modula3, "Modula 3"},
