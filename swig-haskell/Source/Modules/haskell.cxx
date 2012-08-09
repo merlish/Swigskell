@@ -260,6 +260,7 @@ public:
 	}
       }
     }
+    
 
     // Add a symbol to the parser for conditional compilation
     Preprocessor_define("SWIGHASKELL 1", 0);
@@ -310,6 +311,7 @@ public:
     }
 
     f_begin = NewFile(outfile, "w", SWIG_output_files());
+    Printf(f_begin, "-- outfile (f_begin)\n");
     if (!f_begin) {
       FileErrorDisplay(outfile);
       SWIG_exit(EXIT_FAILURE);
@@ -321,6 +323,7 @@ public:
         SWIG_exit(EXIT_FAILURE);
       }
       f_runtime_h = NewFile(outfile_h, "w", SWIG_output_files());
+      Printf(outfile_h, "-- outfile_h (f_runtime_h)\n");
       if (!f_runtime_h) {
 	FileErrorDisplay(outfile_h);
 	SWIG_exit(EXIT_FAILURE);
@@ -426,9 +429,9 @@ public:
       // Insert director runtime into the f_runtime file (make it occur before %header section)
       Swig_insert_file("director.swg", f_runtime);
     }
-    // Generate the intermediary class
+    // Generate the intermediary (PINVOKE) class
     {
-      String *filen = NewStringf("%s%s.cs", SWIG_output_directory(), imclass_name);
+      String *filen = NewStringf("%s%s.hs", SWIG_output_directory(), imclass_name);
       File *f_im = NewFile(filen, "w", SWIG_output_files());
       if (!f_im) {
 	FileErrorDisplay(filen);
@@ -438,22 +441,37 @@ public:
       Delete(filen);
       filen = NULL;
 
+      Printf(f_im, "-- intermediary class\n");
+
       // Start writing out the intermediary class file
       emitBanner(f_im);
 
       addOpenNamespace(0, f_im);
 
       if (imclass_imports)
+      {	
+	Printf(f_im, "-- todo: valid haskell for imports\n");
 	Printf(f_im, "%s\n", imclass_imports);
+      }
 
       if (Len(imclass_class_modifiers) > 0)
+      {
+	Printf(f_im, "-- todo: valid haskell for class modifiers\n");
 	Printf(f_im, "%s ", imclass_class_modifiers);
+      }
+
       Printf(f_im, "%s ", imclass_name);
 
       if (imclass_baseclass && *Char(imclass_baseclass))
+      {
+	Printf(f_im, "-- todo: valid haskell for base class\n");
 	Printf(f_im, ": %s ", imclass_baseclass);
+      }
       if (Len(imclass_interfaces) > 0)
+      {
+	Printf(f_im, "-- todo: valid haskell for interfaces\n");
 	Printv(f_im, "implements ", imclass_interfaces, " ", NIL);
+      }
       Printf(f_im, "{\n");
 
       // Add the intermediary class methods
@@ -481,6 +499,8 @@ public:
       Append(filenames_list, Copy(filen));
       Delete(filen);
       filen = NULL;
+
+      Printf(f_module, "-- module class\n");
 
       // Start writing out the module class file
       emitBanner(f_module);
@@ -1208,6 +1228,7 @@ public:
 	  String *output_directory = outputDirectory(nspace);
 	  String *filen = NewStringf("%s%s.cs", output_directory, symname);
 	  File *f_enum = NewFile(filen, "w", SWIG_output_files());
+	  Printf(f_enum, "-- global enum file\n");
 	  if (!f_enum) {
 	    FileErrorDisplay(filen);
 	    SWIG_exit(EXIT_FAILURE);
@@ -1676,12 +1697,17 @@ public:
     // Class attributes
     const String *csattributes = typemapLookup(n, "csattributes", typemap_lookup_type, WARN_NONE);
     if (csattributes && *Char(csattributes))
-      Printf(proxy_class_def, "%s\n", csattributes);
+      Printf(proxy_class_def, "-- (attributes not supported yet)\n");
+      //Printf(proxy_class_def, "%s\n", csattributes);
 
-    Printv(proxy_class_def, typemapLookup(n, "csclassmodifiers", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CLASSMOD_UNDEF),	// Class modifiers
-	   " $csclassname",	// Class name and base class
-	   (*Char(wanted_base) || *Char(pure_interfaces)) ? " : " : "", wanted_base, (*Char(wanted_base) && *Char(pure_interfaces)) ?	// Interfaces
-	   ", " : "", pure_interfaces, " {", derived ? typemapLookup(n, "csbody_derived", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF) :	// main body of class
+    Printf(proxy_class_def, "-- (inheritance, interfaces not supported yet)\n");
+
+    Printv(proxy_class_def, //typemapLookup(n, "csclassmodifiers", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CLASSMOD_UNDEF),	// Class modifiers
+	   "-- (modifiers not supported yet)\n",
+	   "type $csclassname = $csclassname { ", // Class name
+	   //" $csclassname",	// Class name and base class
+	   // (*Char(wanted_base) || *Char(pure_interfaces)) ? " : " : "", wanted_base, (*Char(wanted_base) && *Char(pure_interfaces)) ?	// Interfaces
+	   // ", " : "", pure_interfaces, " {", derived ? typemapLookup(n, "csbody_derived", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF) :	// main body of class
 	   typemapLookup(n, "csbody", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF),	// main body of class
 	   NIL);
 
@@ -1897,8 +1923,9 @@ public:
 	return SWIG_ERROR;
 
       String *output_directory = outputDirectory(nspace);
-      String *filen = NewStringf("%s%s.cs", output_directory, proxy_class_name);
+      String *filen = NewStringf("%s%s.hs", output_directory, proxy_class_name);
       f_proxy = NewFile(filen, "w", SWIG_output_files());
+      Printf(f_proxy, "-- Class Handler file for ", proxy_class_name, "\n");
       if (!f_proxy) {
 	FileErrorDisplay(filen);
 	SWIG_exit(EXIT_FAILURE);
@@ -3183,7 +3210,7 @@ public:
     Setline(n, line_number);
 
     String *swigtype = NewString("");
-    String *filen = NewStringf("%s%s.cs", SWIG_output_directory(), classname);
+    String *filen = NewStringf("%s%s.hs", SWIG_output_directory(), classname);
     File *f_swigtype = NewFile(filen, "w", SWIG_output_files());
     if (!f_swigtype) {
       FileErrorDisplay(filen);
@@ -3192,6 +3219,8 @@ public:
     Append(filenames_list, Copy(filen));
     Delete(filen);
     filen = NULL;
+
+    Printf(f_swigtype, "-- Type wrapper class file for ", classname);
 
     // Start writing out the type wrapper class file
     emitBanner(f_swigtype);
@@ -3203,7 +3232,7 @@ public:
     const String *pure_interfaces = typemapLookup(n, "csinterfaces", type, WARN_NONE);
 
     // Emit the class
-    Printv(swigtype, typemapLookup(n, "csimports", type, WARN_NONE),	// Import statements
+    /*Printv(swigtype, typemapLookup(n, "csimports", type, WARN_NONE),	// Import statements
 	   "\n", NIL);
 
     // Class attributes
@@ -3221,7 +3250,12 @@ public:
     Replaceall(swigtype, "$csclassname", classname);
     Replaceall(swigtype, "$module", module_class_name);
     Replaceall(swigtype, "$imclassname", imclass_name);
-    Replaceall(swigtype, "$dllimport", dllimport);
+    Replaceall(swigtype, "$dllimport", dllimport);*/
+
+    Printf(f_swigtype, "-- TODO: namespaces, imports, class modifiers, other imports support");
+    Printv(swigtype, "module ", classname, " where \n", 
+	  typemapLookup(n, "csbody", type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF),
+	  typemapLookup(n, "cscode", type, WARN_NONE));
 
     Printv(f_swigtype, swigtype, NIL);
 
