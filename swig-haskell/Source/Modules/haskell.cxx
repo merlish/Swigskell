@@ -2116,7 +2116,7 @@ public:
 
     if (l) {
       if (SwigType_type(Getattr(l, "type")) == T_VOID) {
-    l = nextSibling(l);
+        l = nextSibling(l);
       }
     }
 
@@ -2157,7 +2157,9 @@ public:
       Printf(function_code, "  %s\n", csattributes);
     const String *methodmods = Getattr(n, "feature:cs:methodmodifiers");
     if (methodmods) {
+      Printf(function_code, "-- already has methodmods\n");
       if (is_smart_pointer()) {
+        Printf(function_code, "-- is a smart pointer\n");
         // Smart pointer classes do not mirror the inheritance hierarchy of the underlying pointer type, so no virtual/override/new required.
         String *mmods = Copy(methodmods);
         Replaceall(mmods, "override", "");
@@ -2170,6 +2172,7 @@ public:
         Printf(function_code, "  %s ", methodmods);
       }
     } else {
+      Printf(function_code, "-- does not have methodmods; creating...\n");
       methodmods = (is_public(n) ? public_string : protected_string);
       Printf(function_code, "  %s ", methodmods);
       if (!is_smart_pointer()) {
@@ -2198,78 +2201,78 @@ public:
 
       /* Ignored varargs */
       if (checkAttribute(p, "varargs:ignore", "1")) {
-    p = nextSibling(p);
-    continue;
+        p = nextSibling(p);
+        continue;
       }
 
       /* Ignored parameters */
       if (checkAttribute(p, "tmap:in:numinputs", "0")) {
-    p = Getattr(p, "tmap:in:next");
-    continue;
+        p = Getattr(p, "tmap:in:next");
+        continue;
       }
 
       /* Ignore the 'this' argument for variable wrappers */
       if (!(variable_wrapper_flag && i == 0)) {
-    SwigType *pt = Getattr(p, "type");
-    String *param_type = NewString("");
+        SwigType *pt = Getattr(p, "type");
+        String *param_type = NewString("");
         if (setter_flag)
           last_parm = p;
 
-    /* Get the C# parameter type */
-    if ((tm = Getattr(p, "tmap:cstype"))) {
-      substituteClassname(pt, tm);
-      const String *inattributes = Getattr(p, "tmap:cstype:inattributes");
-      Printf(param_type, "%s%s", inattributes ? inattributes : empty_string, tm);
-    } else {
-      Swig_warning(WARN_CSHARP_TYPEMAP_CSWTYPE_UNDEF, input_file, line_number, "No cstype typemap defined for %s\n", SwigType_str(pt, 0));
-    }
+        /* Get the C# parameter type */
+        if ((tm = Getattr(p, "tmap:cstype"))) {
+          substituteClassname(pt, tm);
+          const String *inattributes = Getattr(p, "tmap:cstype:inattributes");
+          Printf(param_type, "%s%s", inattributes ? inattributes : empty_string, tm);
+        } else {
+          Swig_warning(WARN_CSHARP_TYPEMAP_CSWTYPE_UNDEF, input_file, line_number, "No cstype typemap defined for %s\n", SwigType_str(pt, 0));
+        }
 
-    if (gencomma)
-      Printf(imcall, ", ");
+        if (gencomma)
+          Printf(imcall, ", ");
 
-    String *arg = makeParameterName(n, p, i, setter_flag);
+        String *arg = makeParameterName(n, p, i, setter_flag);
 
-    // Use typemaps to transform type used in C# wrapper function (in proxy class) to type used in PInvoke function (in intermediary class)
-    if ((tm = Getattr(p, "tmap:csin"))) {
-      substituteClassname(pt, tm);
-      Replaceall(tm, "$csinput", arg);
-          String *pre = Getattr(p, "tmap:csin:pre");
-          if (pre) {
-            substituteClassname(pt, pre);
-            Replaceall(pre, "$csinput", arg);
-            if (Len(pre_code) > 0)
-              Printf(pre_code, "\n");
-            Printv(pre_code, pre, NIL);
-          }
-          String *post = Getattr(p, "tmap:csin:post");
-          if (post) {
-            substituteClassname(pt, post);
-            Replaceall(post, "$csinput", arg);
-            if (Len(post_code) > 0)
-              Printf(post_code, "\n");
-            Printv(post_code, post, NIL);
-          }
-          String *terminator = Getattr(p, "tmap:csin:terminator");
-          if (terminator) {
-            substituteClassname(pt, terminator);
-            Replaceall(terminator, "$csinput", arg);
-            if (Len(terminator_code) > 0)
-              Insert(terminator_code, 0, "\n");
-            Insert(terminator_code, 0, terminator);
-          }
-      Printv(imcall, tm, NIL);
-    } else {
-      Swig_warning(WARN_CSHARP_TYPEMAP_CSIN_UNDEF, input_file, line_number, "No csin typemap defined for %s\n", SwigType_str(pt, 0));
-    }
+        // Use typemaps to transform type used in C# wrapper function (in proxy class) to type used in PInvoke function (in intermediary class)
+        if ((tm = Getattr(p, "tmap:csin"))) {
+          substituteClassname(pt, tm);
+          Replaceall(tm, "$csinput", arg);
+              String *pre = Getattr(p, "tmap:csin:pre");
+              if (pre) {
+                substituteClassname(pt, pre);
+                Replaceall(pre, "$csinput", arg);
+                if (Len(pre_code) > 0)
+                  Printf(pre_code, "\n");
+                Printv(pre_code, pre, NIL);
+              }
+              String *post = Getattr(p, "tmap:csin:post");
+              if (post) {
+                substituteClassname(pt, post);
+                Replaceall(post, "$csinput", arg);
+                if (Len(post_code) > 0)
+                  Printf(post_code, "\n");
+                Printv(post_code, post, NIL);
+              }
+              String *terminator = Getattr(p, "tmap:csin:terminator");
+              if (terminator) {
+                substituteClassname(pt, terminator);
+                Replaceall(terminator, "$csinput", arg);
+                if (Len(terminator_code) > 0)
+                  Insert(terminator_code, 0, "\n");
+                Insert(terminator_code, 0, terminator);
+              }
+          Printv(imcall, tm, NIL);
+        } else {
+          Swig_warning(WARN_CSHARP_TYPEMAP_CSIN_UNDEF, input_file, line_number, "No csin typemap defined for %s\n", SwigType_str(pt, 0));
+        }
 
-    /* Add parameter to proxy function */
-    if (gencomma >= 2)
-      Printf(function_code, ", ");
-    gencomma = 2;
-    Printf(function_code, "%s %s", param_type, arg);
+        /* Add parameter to proxy function */
+        if (gencomma >= 2)
+          Printf(function_code, ", ");
+        gencomma = 2;
+        Printf(function_code, "%s %s", param_type, arg);
 
-    Delete(arg);
-    Delete(param_type);
+        Delete(arg);
+        Delete(param_type);
       }
       p = Getattr(p, "tmap:in:next");
     }
@@ -2298,45 +2301,46 @@ public:
         if (is_terminator_code) {
           Printv(tm, "\n", terminator_code, NIL);
         }
-    Insert(tm, 0, "{");
-    Printf(tm, "\n  }");
+        Insert(tm, 0, "{");
+        Printf(tm, "\n  }");
       }
       if (GetFlag(n, "feature:new"))
-    Replaceall(tm, "$owner", "true");
+        Replaceall(tm, "$owner", "true");
       else
-    Replaceall(tm, "$owner", "false");
+        Replaceall(tm, "$owner", "false");
       substituteClassname(t, tm);
 
       // For director methods: generate code to selectively make a normal polymorphic call or
       // an explicit method call - needed to prevent infinite recursion calls in director methods.
       Node *explicit_n = Getattr(n, "explicitcallnode");
       if (explicit_n) {
-    String *ex_overloaded_name = getOverloadedName(explicit_n);
-    String *ex_intermediary_function_name = Swig_name_member(getNSpace(), proxy_class_name, ex_overloaded_name);
+        Printf(proxy_class_code, "-- director method detected\n");
+        String *ex_overloaded_name = getOverloadedName(explicit_n);
+        String *ex_intermediary_function_name = Swig_name_member(getNSpace(), proxy_class_name, ex_overloaded_name);
 
-    String *ex_imcall = Copy(imcall);
-    Replaceall(ex_imcall, "$imfuncname", ex_intermediary_function_name);
-    Replaceall(imcall, "$imfuncname", intermediary_function_name);
-    String *excode = NewString("");
-    Node *directorNode = Getattr(n, "directorNode");
-    if (directorNode) {
-      UpcallData *udata = Getattr(directorNode, "upcalldata");
-      String *methid = Getattr(udata, "class_methodidx");
+        String *ex_imcall = Copy(imcall);
+        Replaceall(ex_imcall, "$imfuncname", ex_intermediary_function_name);
+        Replaceall(imcall, "$imfuncname", intermediary_function_name);
+        String *excode = NewString("");
+        Node *directorNode = Getattr(n, "directorNode");
+        if (directorNode) {
+          UpcallData *udata = Getattr(directorNode, "upcalldata");
+          String *methid = Getattr(udata, "class_methodidx");
 
-      if (!Cmp(return_type, "void"))
-        Printf(excode, "if (SwigDerivedClassHasMethod(\"%s\", swigMethodTypes%s)) %s; else %s", proxy_function_name, methid, ex_imcall, imcall);
-      else
-        Printf(excode, "(SwigDerivedClassHasMethod(\"%s\", swigMethodTypes%s) ? %s : %s)", proxy_function_name, methid, ex_imcall, imcall);
+          if (!Cmp(return_type, "void"))
+            Printf(excode, "if (SwigDerivedClassHasMethod(\"%s\", swigMethodTypes%s)) %s; else %s", proxy_function_name, methid, ex_imcall, imcall);
+          else
+            Printf(excode, "(SwigDerivedClassHasMethod(\"%s\", swigMethodTypes%s) ? %s : %s)", proxy_function_name, methid, ex_imcall, imcall);
 
-      Clear(imcall);
-      Printv(imcall, excode, NIL);
-    } else {
-      // probably an ignored method or nodirector
-    }
-    Delete(excode);
-    Delete(ex_overloaded_name);
+          Clear(imcall);
+          Printv(imcall, excode, NIL);
+        } else {
+          // probably an ignored method or nodirector
+        }
+        Delete(excode);
+        Delete(ex_overloaded_name);
       } else {
-    Replaceall(imcall, "$imfuncname", intermediary_function_name);
+        Replaceall(imcall, "$imfuncname", intermediary_function_name);
       }
       Replaceall(tm, "$imcall", imcall);
     } else {
@@ -2345,60 +2349,64 @@ public:
 
     if (wrapping_member_flag && !enum_constant_flag) {
       // Properties
+      Printf(proxy_class_code, "-- property detected\n");
       if (generate_property_declaration_flag) {	// Ensure the declaration is generated just once should the property contain both a set and get
-    // Get the C# variable type - obtained differently depending on whether a setter is required.
-    String *variable_type = return_type;
-    if (setter_flag) {
-      p = last_parm;	// (last parameter is the only parameter for properties)
-      SwigType *pt = Getattr(p, "type");
-      if ((tm = Getattr(p, "tmap:cstype"))) {
-        substituteClassname(pt, tm);
-            String *cstypeout = Getattr(p, "tmap:cstype:out");	// the type in the cstype typemap's out attribute overrides the type in the typemap
-        variable_type = cstypeout ? cstypeout : tm;
-      } else {
-        Swig_warning(WARN_CSHARP_TYPEMAP_CSOUT_UNDEF, input_file, line_number, "No csvarin typemap defined for %s\n", SwigType_str(pt, 0));
-      }
-    }
-    const String *csattributes = Getattr(n, "feature:cs:attributes");
-    if (csattributes)
-      Printf(proxy_class_code, "  %s\n", csattributes);
-    const String *methodmods = Getattr(n, "feature:cs:methodmodifiers");
-    if (!methodmods)
-      methodmods = (is_public(n) ? public_string : protected_string);
-    Printf(proxy_class_code, "  %s %s%s %s {", methodmods, static_flag ? "static " : "", variable_type, variable_name);
+        // Get the C# variable type - obtained differently depending on whether a setter is required.
+        String *variable_type = return_type;
+        if (setter_flag) {
+          p = last_parm;	// (last parameter is the only parameter for properties)
+          SwigType *pt = Getattr(p, "type");
+          if ((tm = Getattr(p, "tmap:cstype"))) {
+            substituteClassname(pt, tm);
+                String *cstypeout = Getattr(p, "tmap:cstype:out");	// the type in the cstype typemap's out attribute overrides the type in the typemap
+            variable_type = cstypeout ? cstypeout : tm;
+          } else {
+            Swig_warning(WARN_CSHARP_TYPEMAP_CSOUT_UNDEF, input_file, line_number, "No csvarin typemap defined for %s\n", SwigType_str(pt, 0));
+          }
+        }
+        const String *csattributes = Getattr(n, "feature:cs:attributes");
+        if (csattributes)
+          Printf(proxy_class_code, "  %s\n", csattributes);
+        const String *methodmods = Getattr(n, "feature:cs:methodmodifiers");
+        if (!methodmods)
+          methodmods = (is_public(n) ? public_string : protected_string);
+        Printf(proxy_class_code, "  %s %s%s %s {", methodmods, static_flag ? "static " : "", variable_type, variable_name);
       }
       generate_property_declaration_flag = false;
 
       if (setter_flag) {
-    // Setter method
-    p = last_parm;		// (last parameter is the only parameter for properties)
-    SwigType *pt = Getattr(p, "type");
-    if ((tm = Getattr(p, "tmap:csvarin"))) {
-      substituteClassname(pt, tm);
-      Replaceall(tm, "$csinput", "value");
-      Replaceall(tm, "$imcall", imcall);
-      excodeSubstitute(n, tm, "csvarin", p);
-      Printf(proxy_class_code, "%s", tm);
-    } else {
-      Swig_warning(WARN_CSHARP_TYPEMAP_CSOUT_UNDEF, input_file, line_number, "No csvarin typemap defined for %s\n", SwigType_str(pt, 0));
-    }
+        // Setter method
+        Printf(proxy_class_code, "-- setter method\n");
+        p = last_parm;		// (last parameter is the only parameter for properties)
+        SwigType *pt = Getattr(p, "type");
+        if ((tm = Getattr(p, "tmap:csvarin"))) {
+          substituteClassname(pt, tm);
+          Replaceall(tm, "$csinput", "value");
+          Replaceall(tm, "$imcall", imcall);
+          excodeSubstitute(n, tm, "csvarin", p);
+          Printf(proxy_class_code, "%s", tm);
+        } else {
+          Swig_warning(WARN_CSHARP_TYPEMAP_CSOUT_UNDEF, input_file, line_number, "No csvarin typemap defined for %s\n", SwigType_str(pt, 0));
+        }
       } else {
-    // Getter method
-    if ((tm = Swig_typemap_lookup("csvarout", n, "", 0))) {
-      if (GetFlag(n, "feature:new"))
-        Replaceall(tm, "$owner", "true");
-      else
-        Replaceall(tm, "$owner", "false");
-      substituteClassname(t, tm);
-      Replaceall(tm, "$imcall", imcall);
-      excodeSubstitute(n, tm, "csvarout", n);
-      Printf(proxy_class_code, "%s", tm);
-    } else {
-      Swig_warning(WARN_CSHARP_TYPEMAP_CSOUT_UNDEF, input_file, line_number, "No csvarout typemap defined for %s\n", SwigType_str(t, 0));
-    }
+        // Getter method
+        Printf(proxy_class_code, "-- getter method\n");
+        if ((tm = Swig_typemap_lookup("csvarout", n, "", 0))) {
+          if (GetFlag(n, "feature:new"))
+            Replaceall(tm, "$owner", "true");
+          else
+            Replaceall(tm, "$owner", "false");
+          substituteClassname(t, tm);
+          Replaceall(tm, "$imcall", imcall);
+          excodeSubstitute(n, tm, "csvarout", n);
+          Printf(proxy_class_code, "%s", tm);
+        } else {
+          Swig_warning(WARN_CSHARP_TYPEMAP_CSOUT_UNDEF, input_file, line_number, "No csvarout typemap defined for %s\n", SwigType_str(t, 0));
+        }
       }
     } else {
       // Normal function call
+      Printf(function_code, "-- normal function call\n");
       Printf(function_code, " %s\n\n", tm ? (const String *) tm : empty_string);
       Printv(proxy_class_code, function_code, NIL);
     }
