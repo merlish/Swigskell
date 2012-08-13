@@ -7,4 +7,5 @@ no-commit/
 build/
 test/*.cs
 test/*_wrap.c
-
+*.autosave
+*.user
