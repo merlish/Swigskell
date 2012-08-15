@@ -1,0 +1,2 @@
+../swig-haskell/build/bin/swig -c++ -csharp -module TestingCpp testing.h
+

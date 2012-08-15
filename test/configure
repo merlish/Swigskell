@@ -1,0 +1,4 @@
+pushd ../swig-haskell/
+mkdir build
+./configure --prefix=`pwd`/build
+popd

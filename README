@@ -1,0 +1,24 @@
+This is just how things are right now.  Things will make slightly more sense soon; but now, I am rushed.
+
+There's a bunch of helpful scripts in the test/ directory.  Do everything from there, and you *should* be okay (although note the configure script is untested).
+
+So:
+
+First time:
+
+cd test
+./configure
+
+(note it might make you install swig's build deps. please do so.)
+
+Compiling:
+
+cd test
+./build
+
+Using the built binaries to troll through testing.h:
+
+cd test
+./try-it
+
+Files will appear.  ./clean to make them disappear.
