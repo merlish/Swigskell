@@ -1,3 +1,4 @@
+# updates the 'make install'd copy of the haskell part of swig-haskell/Lib/
 pushd ../swig-haskell/build/share/swig/*/haskell
 thatdir=`pwd`
 popd

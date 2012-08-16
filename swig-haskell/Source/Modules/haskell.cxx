@@ -18,6 +18,9 @@
 #include "cparse.h"
 #include <ctype.h>
 
+// temp
+#include <cstdio>
+
 /* Hash type used for upcalls from C/C++ */
 typedef DOH UpcallData;
 
@@ -81,6 +84,9 @@ class HASKELL:public Language {
   String *director_method_types;	// Director method types
   String *director_connect_parms;	// Director delegates parameter list for director connect call
   String *destructor_call;	//C++ destructor call if any
+
+  String *proxy_class_haskell_constructor; // the string that contains the contents of the constructor function for the current proxy class
+  String *proxy_class_arglebargle; // string containing parts of the first line of the constructor function for the current proxy class
 
   // Director method stuff:
   List *dmethods_seq;
@@ -155,6 +161,8 @@ public:
       destructor_call(NULL),
       dmethods_seq(NULL),
       dmethods_table(NULL),
+      proxy_class_haskell_constructor(NULL),
+      proxy_class_arglebargle(NULL),
       n_dmethods(0),
       n_directors(0) {
     /* for now, multiple inheritance in directors is disabled, this
@@ -388,6 +396,10 @@ public:
     if (!dllimport)
       dllimport = Copy(module_class_name);
 
+    // m: le sigh
+    proxy_class_haskell_constructor = NewString("");
+    proxy_class_arglebargle = NewString("");
+
     Swig_banner(f_begin);
 
     Printf(f_runtime, "\n");
@@ -450,29 +462,29 @@ public:
 
       if (imclass_imports)
       {	
-	Printf(f_im, "-- todo: valid haskell for imports\n");
-	Printf(f_im, "%s\n", imclass_imports);
+        Printf(f_im, "-- todo: valid haskell for imports\n");
+        Printf(f_im, "%s\n", imclass_imports);
       }
 
       if (Len(imclass_class_modifiers) > 0)
       {
-	Printf(f_im, "-- todo: valid haskell for class modifiers\n");
-	Printf(f_im, "%s ", imclass_class_modifiers);
+        Printf(f_im, "-- todo: valid haskell for class modifiers\n");
+        Printf(f_im, "%s ", imclass_class_modifiers);
       }
 
-      Printf(f_im, "%s ", imclass_name);
+      //Printf(f_im, "%s ", imclass_name);
 
       if (imclass_baseclass && *Char(imclass_baseclass))
       {
-	Printf(f_im, "-- todo: valid haskell for base class\n");
-	Printf(f_im, ": %s ", imclass_baseclass);
+        Printf(f_im, "-- todo: valid haskell for base class\n");
+        Printf(f_im, ": %s ", imclass_baseclass);
       }
       if (Len(imclass_interfaces) > 0)
       {
-	Printf(f_im, "-- todo: valid haskell for interfaces\n");
-	Printv(f_im, "implements ", imclass_interfaces, " ", NIL);
+        Printf(f_im, "-- todo: valid haskell for interfaces\n");
+        Printv(f_im, "implements ", imclass_interfaces, " ", NIL);
       }
-      Printf(f_im, "{\n");
+      //Printf(f_im, "{\n");
 
       // Add the intermediary class methods
       Replaceall(imclass_class_code, "$module", module_class_name);
@@ -482,7 +494,7 @@ public:
       Printv(f_im, imclass_cppcasts_code, NIL);
 
       // Finish off the class
-      Printf(f_im, "}\n");
+      //Printf(f_im, "}\n");
       addCloseNamespace(0, f_im);
 
       Close(f_im);
@@ -573,6 +585,12 @@ public:
       Delete(item1_lower);
     }
 
+    // m: le sigh also
+    Delete(proxy_class_arglebargle);
+    proxy_class_arglebargle = NULL;
+    Delete(proxy_class_haskell_constructor);
+    proxy_class_haskell_constructor = NULL;
+
     Delete(swig_types_hash);
     swig_types_hash = NULL;
     Delete(filenames_list);
@@ -655,9 +673,9 @@ public:
    * ----------------------------------------------------------------------------- */
 
   void emitBanner(File *f) {
-    Printf(f, "/* ----------------------------------------------------------------------------\n");
-    Swig_banner_target_lang(f, " *");
-    Printf(f, " * ----------------------------------------------------------------------------- */\n\n");
+    Printf(f, "-- ----------------------------------------------------------------------------\n");
+    Swig_banner_target_lang(f, "-- ");
+    Printf(f, "-- ----------------------------------------------------------------------------- */\n\n");
   }
 
   /*-----------------------------------------------------------------------
@@ -736,6 +754,63 @@ public:
    * functionWrapper()
    * ---------------------------------------------------------------------- */
 
+protected:
+  int intermediateFunctionWrapper(Node* n, String* output) {
+    String* symname = Getattr(n, "sym:name");
+    String* overloadedname = getOverloadedName(n);
+
+    // start outputting the import
+    Printf(output, "foreign import ccall \"%s\"\n", symname);
+    Printf(output, "  c_%s_%s :: ", imclass_name, overloadedname);
+
+    // now we need to output the appropriate types!
+
+    ParmList* params = Getattr(n, "parms");
+
+    Swig_typemap_attach_parms("imtype", params, 0);
+
+
+    // Let's do the arguments.
+
+    // The C#'s typemap lets any number of input parameters become any number of output parameters.
+    // We'll just be inflexible and assume a 1:1 mapping.  (So we can ignore emit_num_arguments etc.)
+
+    for (Parm* p = params; p; p = nextSibling(p)) {
+      String* tm = Getattr(p, "tmap:imtype");
+
+      if (tm) {
+        // TODO: tmap:imtype:inattributes
+        Printf(output, "%s -> ", tm);
+      } else {
+        Swig_warning(WARN_CSHARP_TYPEMAP_CSTYPE_UNDEF, input_file, line_number, "No imtype typemap defined for %s\n", SwigType_str(Getattr(p, "type"), 0));
+      }
+    }
+
+    // And, finally, the return type.
+
+    String* returnType = Swig_typemap_lookup("imtype", n, "", 0);
+
+    if (returnType) {
+      // from the c# code: if the type in (imtype typemap)'s out attribute exists, it should override the above type.
+      // (I don't understand why yet.)
+      // TODO: tmap:imtype:outattributes
+
+      String* imtypeout = Getattr(n, "tmap:imtype:out");
+      if (imtypeout) {
+        returnType = imtypeout;
+      }
+    } else {
+      Swig_warning(WARN_CSHARP_TYPEMAP_CSTYPE_UNDEF, input_file, line_number, "No imtype typemap defined for %s\n", SwigType_str(Getattr(n, "type"), 0));
+      // TODO: do something better here?? Just assuming the func returns nothing is probably a bad plan.
+    }
+
+    Printf(output, "IO %s\n", returnType ? returnType : empty_string);
+
+    return SWIG_OK;
+  }
+
+public:
+
   virtual int functionWrapper(Node *n) {
     String *symname = Getattr(n, "sym:name");
     SwigType *t = Getattr(n, "type");
@@ -757,6 +832,10 @@ public:
       if (!addSymbol(Getattr(n, "sym:name"), n, imclass_name))
 	return SWIG_ERROR;
     }
+
+
+    // m
+    intermediateFunctionWrapper(n, imclass_class_code);
 
     /*
        The rest of this function deals with generating the intermediary class wrapper function (that wraps
@@ -784,7 +863,7 @@ public:
       Swig_warning(WARN_CSHARP_TYPEMAP_CTYPE_UNDEF, input_file, line_number, "No ctype typemap defined for %s\n", SwigType_str(t, 0));
     }
 
-    if ((tm = Swig_typemap_lookup("imtype", n, "", 0))) {
+    /*if ((tm = Swig_typemap_lookup("imtype", n, "", 0))) {
       String *imtypeout = Getattr(n, "tmap:imtype:out");	// the type in the imtype typemap's out attribute overrides the type in the typemap
       if (imtypeout)
 	tm = imtypeout;
@@ -792,7 +871,7 @@ public:
       im_outattributes = Getattr(n, "tmap:imtype:outattributes");
     } else {
       Swig_warning(WARN_CSHARP_TYPEMAP_CSTYPE_UNDEF, input_file, line_number, "No imtype typemap defined for %s\n", SwigType_str(t, 0));
-    }
+    }*/
 
     is_void_return = (Cmp(c_return_type, "void") == 0);
     if (!is_void_return)
@@ -818,12 +897,12 @@ public:
 	return SWIG_OK;
     }
 
-    Printv(imclass_class_code, "\n  [DllImport(\"", dllimport, "\", EntryPoint=\"", wname, "\")]\n", NIL);
+    /*Printv(imclass_class_code, "\n  [DllImport(\"", dllimport, "\", EntryPoint=\"", wname, "\")]\n", NIL);
 
     if (im_outattributes)
       Printf(imclass_class_code, "  %s\n", im_outattributes);
 
-    Printf(imclass_class_code, "  public static extern %s %s(", im_return_type, overloaded_name);
+    Printf(imclass_class_code, "  public static extern %s %s(", im_return_type, overloaded_name);*/
 
 
     /* Get number of required and total arguments */
@@ -861,9 +940,9 @@ public:
       }
 
       /* Add parameter to intermediary class method */
-      if (gencomma)
+      /*if (gencomma)
 	Printf(imclass_class_code, ", ");
-      Printf(imclass_class_code, "%s %s", im_param_type, arg);
+      Printf(imclass_class_code, "%s %s", im_param_type, arg);*/
 
       // Add parameter to C function
       Printv(f->def, gencomma ? ", " : "", c_param_type, " ", arg, NIL);
@@ -1009,8 +1088,8 @@ public:
     }
 
     /* Finish C function and intermediary class function definitions */
-    Printf(imclass_class_code, ")");
-    Printf(imclass_class_code, ";\n");
+    /*Printf(imclass_class_code, ")");
+    Printf(imclass_class_code, ";\n");*/
 
     Printf(f->def, ") {");
 
@@ -1702,6 +1781,16 @@ public:
 
     Printf(proxy_class_def, "-- (inheritance, interfaces not supported yet)\n");
 
+    // m: this needs to go elsewhere.  not refactoring until i understand the function, though.
+    Printf(proxy_class_code, "create$csclassname :: IO ($csclassname)\n");
+    Printf(proxy_class_code, "create$csclassname = $csclassname $arglebargle\n");
+    Printf(proxy_class_code, "  where placeholder0idonotunderstandhaskelllininguprules = ()\n");
+    Printf(proxy_class_code, "$haskellconstructor\n");
+    Clear(proxy_class_arglebargle);
+    Clear(proxy_class_haskell_constructor);
+    Printf(proxy_class_haskell_constructor, "  where placeholder0idonotunderstandhaskelllininguprules = ()\n");
+
+    // m: hi there!
     Printv(proxy_class_def, //typemapLookup(n, "csclassmodifiers", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CLASSMOD_UNDEF),	// Class modifiers
 	   "-- (modifiers not supported yet)\n",
 	   "type $csclassname = $csclassname { ", // Class name
@@ -1709,7 +1798,7 @@ public:
 	   // (*Char(wanted_base) || *Char(pure_interfaces)) ? " : " : "", wanted_base, (*Char(wanted_base) && *Char(pure_interfaces)) ?	// Interfaces
 	   // ", " : "", pure_interfaces, " {", derived ? typemapLookup(n, "csbody_derived", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF) :	// main body of class
 	   typemapLookup(n, "csbody", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF),	// main body of class
-	   NIL);
+       NIL);
 
     // C++ destructor is wrapped by the Dispose method
     // Note that the method name is specified in a typemap attribute called methodname
@@ -1840,6 +1929,11 @@ public:
     Printv(proxy_class_def, typemapLookup(n, "cscode", typemap_lookup_type, WARN_NONE),	// extra C# code
 	   "\n", NIL);
 
+
+    // m: Not doing upcast methods, because I think we can make the resulting Haskell types actually castable properly.
+    //    (bwim: for c#, if the c++ Cat class inherits from the c++ Animal class, it is NOT possible to do a c# cast from the
+    //            c# Cat class to the c# Animal class.  i guess due to multiple inheritance problems...?)
+    /*
     // Add code to do C++ casting to base class (only for classes in an inheritance hierarchy)
     if (derived) {
       String *smartptr = Getattr(n, "feature:smartptr");
@@ -1883,6 +1977,7 @@ public:
       Delete(wname);
       Delete(upcast_method);
     }
+    */
     Delete(baseclass);
   }
 
@@ -1973,6 +2068,10 @@ public:
       Replaceall(proxy_class_def, "$dllimport", dllimport);
       Replaceall(proxy_class_code, "$dllimport", dllimport);
       Replaceall(proxy_class_constants_code, "$dllimport", dllimport);
+
+      // m: hi there!1
+      Replaceall(proxy_class_code, "$arglebargle", proxy_class_arglebargle);
+      Replaceall(proxy_class_code, "$haskellconstructor", proxy_class_haskell_constructor);
 
       Printv(f_proxy, proxy_class_def, proxy_class_code, NIL);
 
@@ -2086,7 +2185,136 @@ public:
    * the intermediary (PInvoke) function name in the intermediary class.
    * ----------------------------------------------------------------------------- */
 
-  void proxyClassFunctionHandler(Node *n) {
+  // Note to self: seemingly will need to change everything back from Type* ptrname to Type *ptrname.
+  // I'm taking the liberty of going Type* ptrname for now, because it's how I think, and I'm struggling enough as it is.
+
+  void proxyClassFunctionHandler(Node* n) {
+    SwigType* t = Getattr(n, "type");
+
+    String* declaration = NewString("");
+    String* definition = NewString("");
+
+    proxyClassFunctionDeclarationHandler(n, declaration);
+    proxyClassFunctionDefinitionHandler(n, definition);
+
+    Printf(proxy_class_code, "%s", definition);
+    Printf(proxy_class_def, "%s", declaration);
+
+
+    Delete(declaration);
+    Delete(definition);
+  }
+
+  // m: produces line like e.g. someProxyFun :: Int -> Int -> IO (Int)\n
+  void proxyClassFunctionDeclarationHandler(Node* n, String* declaration) {
+    SwigType* t = Getattr(n, "type");
+    ParmList* params = Getattr(n, "parms");
+    String* im_fun = Getattr(n, "imfuncname");
+    String* proxy_fun = Getattr(n, "proxyfuncname");
+
+    Printf(declaration, "  -- (proxyClassFunctionDeclarationHandler %s for %s)\n", proxy_fun, im_fun);
+
+    // m: start of the fun def
+    // m: need to get used to abbreviating functions as 'fun'. heheh.
+    Printf(declaration, "  %s :: ", proxy_fun);
+
+    // m: troll through each arg, outputting equivalent Haskell type (if we know of one).
+    // m: (fwiw, i do admire swig's adherence to making module writers' lives as easy as possible by exposing
+    //      a C-like way of doing things, but i did just try to do par = par->nextSibling() right there.)
+    for (Parm* par = params; par; par = nextSibling(par)) {
+      SwigType* type = Getattr(par, "type");
+      String* name = Getattr(par, "name");
+      String* val = Getattr(par, "value");
+
+      /*if (!(nextSibling(par))) {
+        // If this is the last argument:
+        Printf(declaration, "%s", type);
+      } else {
+        // Otherwise:
+        Printf(declaration, "%s -> ", type);
+      }*/
+
+      Printf(declaration, "%s -> ", type);
+    }
+
+    // m: ...aaand now the return type.
+    Printf(declaration, "IO %s", t);
+
+    Printf(declaration, "\n");
+
+    // wibble.
+  }
+
+  void proxyClassFunctionDefinitionHandler(Node* n, String* srzzygzzy) {
+    SwigType* t = Getattr(n, "type");
+    ParmList* params = Getattr(n, "parms");
+
+    String* im_fun = Getattr(n, "imfuncname");
+    String* proxy_fun = Getattr(n, "proxyfuncname");
+
+    String* protoargline = NewString(" ");
+
+    printf("attaching hstype\n");
+
+    Swig_typemap_attach_parms("hstype", params, 0);
+
+    printf("counting params\n");
+
+    // m: counting the parameters and adding an argument to the haskell func for each one
+    int argnum = 0;
+    for (Parm* par = params; par; par = nextSibling(par)) {
+      // add to the func definition, so we can explicitly capture this argument
+      Printf(protoargline, "a%s ", argnum);
+      argnum++;
+    }
+
+    printf("doing thing\n");
+
+    Printf(srzzygzzy, "-- (proxyClassFunctionDefinitionHandler %s for %s)\n", proxy_fun, im_fun);
+
+
+    printf("being nice\n");
+
+    // m: it's nice to explicitly write down the type.
+    Printf(srzzygzzy, "proto_%s :: Ptr -> ", proxy_fun);
+
+    for (Parm* par = params; par; par = nextSibling(par)) {
+      printf("getattr impending\n");
+      Printf(srzzygzzy, "%s -> ", Getattr(par, "tmap:hstype"));
+    }
+
+    printf("get return type\n");
+
+    Printf(srzzygzzy, "IO %s\n", Swig_typemap_lookup("hstype", n, "ihatelnames", 0));
+
+
+    printf("building proto\n");
+
+    Printf(srzzygzzy, "proto_%s this%s= do\n", proxy_fun, protoargline);
+    Printf(srzzygzzy, "  %s this ", "$magifuncnametodo");
+
+    // m: need to convert each arg before passing to the func that actually does the work.
+    argnum = 0;
+    for (Parm* par = params; par; par = nextSibling(par)) {
+      //Printf(srzzygzzy, "(swig_convert_towards_cpp \"%s\"
+      Printf(srzzygzzy, "-- TODO a%s", argnum);
+
+      argnum++;
+    }
+
+    Printf(srzzygzzy, "\n  (your_class_name_here! yeah!! (reconstructor??)) \n");
+    //Printf(definition, "-- Lol todo.");
+
+
+    Printf(proxy_class_arglebargle, "lambda_proto_%s ", proxy_fun);
+    Printf(proxy_class_haskell_constructor, "        lambda_proto_%s = proto_%s objptr", proxy_fun);
+
+  }
+
+  // m: produces the type declaration for the function, ready to be inserted as a field
+  //  into the record representing the class.
+
+  void csProxyClassFunctionHandler(Node *n) {
     SwigType *t = Getattr(n, "type");
     ParmList *l = Getattr(n, "parms");
     String *intermediary_function_name = Getattr(n, "imfuncname");
@@ -2102,6 +2330,9 @@ public:
     String *pre_code = NewString("");
     String *post_code = NewString("");
     String *terminator_code = NewString("");
+
+    String *declaration = NewString("");
+    String *definition = NewString("");
 
     if (!proxy_flag)
       return;
@@ -2131,12 +2362,12 @@ public:
       SwigType *covariant = Getattr(n, "covariant");
       String *cstypeout = Getattr(n, "tmap:cstype:out");	// the type in the cstype typemap's out attribute overrides the type in the typemap
       if (cstypeout)
-	tm = cstypeout;
+        tm = cstypeout;
       substituteClassname(covariant ? covariant : t, tm);
       Printf(return_type, "%s", tm);
       if (covariant)
-	Swig_warning(WARN_CSHARP_COVARIANT_RET, input_file, line_number,
-		     "Covariant return types not supported in C#. Proxy method will return %s.\n", SwigType_str(covariant, 0));
+        Swig_warning(WARN_CSHARP_COVARIANT_RET, input_file, line_number,
+             "Covariant return types not supported in C#. Proxy method will return %s.\n", SwigType_str(covariant, 0));
     } else {
       Swig_warning(WARN_CSHARP_TYPEMAP_CSWTYPE_UNDEF, input_file, line_number, "No cstype typemap defined for %s\n", SwigType_str(t, 0));
     }
@@ -2182,11 +2413,14 @@ public:
           Printf(function_code, "virtual ");
         if (Getattr(n, "hides"))
           Printf(function_code, "new ");
-        }
+      }
     }
     if (static_flag)
       Printf(function_code, "static ");
-    Printf(function_code, "%s %s(", return_type, proxy_function_name);
+    //Printf(function_code, "%s %s(", return_type, proxy_function_name);
+
+    Printf(declaration, "%s :: ", proxy_function_name);
+    Printf(definition, "%s = ", proxy_function_name);
 
     Printv(imcall, full_imclass_name, ".$imfuncname(", NIL);
     if (!static_flag)
@@ -2228,7 +2462,7 @@ public:
         }
 
         if (gencomma)
-          Printf(imcall, ", ");
+          Printf(imcall, " ");
 
         String *arg = makeParameterName(n, p, i, setter_flag);
 
@@ -2267,15 +2501,20 @@ public:
 
         /* Add parameter to proxy function */
         if (gencomma >= 2)
-          Printf(function_code, ", ");
+          Printf(declaration, " -> ");
         gencomma = 2;
-        Printf(function_code, "%s %s", param_type, arg);
+        //Printf(function_code, "%s %s", param_type, arg);
+        Printf(declaration, "%s", param_type);
+        Printf(definition, "%s", arg);
 
         Delete(arg);
         Delete(param_type);
       }
       p = Getattr(p, "tmap:in:next");
     }
+
+    // aaaand the return type!
+    Printf(declaration, " IO (%s)", return_type);
 
     Printf(imcall, ")");
     Printf(function_code, ")");
@@ -2407,8 +2646,13 @@ public:
     } else {
       // Normal function call
       Printf(function_code, "-- normal function call\n");
-      Printf(function_code, " %s\n\n", tm ? (const String *) tm : empty_string);
-      Printv(proxy_class_code, function_code, NIL);
+      Printf(definition, " %s\n\n", tm ? (const String *) tm : empty_string);
+
+      //Printf(function_code, "%s\n%s\n", declaration, definition);
+      Printv(proxy_class_def, declaration, NIL);
+      Printv(proxy_class_code, definition, NIL);
+      //Printv(proxy_class_code, function_code, NIL);
+
     }
 
     Delete(pre_code);
@@ -3343,13 +3587,18 @@ public:
 
   void addOpenNamespace(const String *nspace, File *file) {
     if (namespce || nspace) {
+      Printf(file, "-- I just want you to know that if we supported namespaces, you'd be entering one right now.\n");
+    }
+    /*
+    if (namespce || nspace) {
       Printf(file, "namespace ");
       if (namespce)
-    Printv(file, namespce, nspace ? "." : "", NIL);
+        Printv(file, namespce, nspace ? "." : "", NIL);
       if (nspace)
-    Printv(file, nspace, NIL);
+        Printv(file, nspace, NIL);
       Printf(file, " {\n");
     }
+    */
   }
 
   /* -----------------------------------------------------------------------------
@@ -3358,7 +3607,8 @@ public:
 
   void addCloseNamespace(const String *nspace, File *file) {
     if (namespce || nspace)
-      Printf(file, "\n}\n");
+      Printf(file, "-- I just want you to know that if we supported namespaces, you would've exited one right now.\n");
+      //Printf(file, "\n}\n");
   }
 
   /* -----------------------------------------------------------------------------
@@ -4183,6 +4433,11 @@ public:
     Setattr(n, "director:decl", declaration);
     Setattr(n, "director:ctor", class_ctor);
   }
+
+protected:
+  #define HASKELL_INTERMEDIATE_CXX_HACK
+  #include "haskell-intermediate.cxx"
+  #undef HASKELL_INTERMEDIATE_CXX_HACK
 
 };				/* class HASKELL */
 

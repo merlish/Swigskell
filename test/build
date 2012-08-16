@@ -1,2 +1,2 @@
-pushd ../swig-haskell/ && make && make install
+pushd ../swig-haskell/ && make && (make install >/dev/null)
 popd

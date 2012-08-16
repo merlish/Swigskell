@@ -1,0 +1,3 @@
+# Makes swig, and then does what 'make install' does to the two binaries, then updates the 'make install'd copy of the haskell part of swig-haskell/Lib/. 
+# (Doing a real make install takes like 10 seconds or something. This is instant.)
+pushd ../swig-haskell/ && (make || popd) && popd && (cp ../swig-haskell/swig ../swig-haskell/build/bin/swig) && (cp ../swig-haskell/CCache/ccache-swig ../swig-haskell/build/bin/ccache-swig) && ./rebuildlib 
