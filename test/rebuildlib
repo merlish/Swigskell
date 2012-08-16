@@ -1,0 +1,6 @@
+pushd ../swig-haskell/build/share/swig/*/haskell
+thatdir=`pwd`
+popd
+rm -rf ../swig-haskell/build/share/swig/*/haskell
+cp -r ../swig-haskell/Lib/haskell $thatdir
+
