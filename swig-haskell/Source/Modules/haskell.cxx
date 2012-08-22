@@ -1786,17 +1786,18 @@ public:
     Printf(proxy_class_code, "create$csclassname = $csclassname $arglebargle\n");
     Printf(proxy_class_code, "  where placeholder0idonotunderstandhaskelllininguprules = ()\n");
     Printf(proxy_class_code, "$haskellconstructor\n");
-    Clear(proxy_class_arglebargle);
-    Clear(proxy_class_haskell_constructor);
+    //Clear(proxy_class_arglebargle);
+    //Clear(proxy_class_haskell_constructor);
     Printf(proxy_class_haskell_constructor, "  where placeholder0idonotunderstandhaskelllininguprules = ()\n");
 
     // m: hi there!
     Printv(proxy_class_def, //typemapLookup(n, "csclassmodifiers", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CLASSMOD_UNDEF),	// Class modifiers
+       "\n}\n",
 	   "-- (modifiers not supported yet)\n",
-	   "type $csclassname = $csclassname { ", // Class name
+       //"type $csclassname = $csclassname { ", // Class name
 	   //" $csclassname",	// Class name and base class
 	   // (*Char(wanted_base) || *Char(pure_interfaces)) ? " : " : "", wanted_base, (*Char(wanted_base) && *Char(pure_interfaces)) ?	// Interfaces
-	   // ", " : "", pure_interfaces, " {", derived ? typemapLookup(n, "csbody_derived", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF) :	// main body of class
+       // ", " : "", pure_interfaces, " {", derived ? typemapLookup(n, "csbody_derived", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF) :	// main body of class
 	   typemapLookup(n, "csbody", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF),	// main body of class
        NIL);
 
@@ -2041,6 +2042,10 @@ public:
       proxy_class_constants_code = NewString("");
     }
 
+    if (proxy_flag) {
+        Printf(proxy_class_def, "type $csclassname = $csclassname {\n");
+    }
+
     Language::classHandler(n);
 
     if (proxy_flag) {
@@ -2071,7 +2076,9 @@ public:
 
       // m: hi there!1
       Replaceall(proxy_class_code, "$arglebargle", proxy_class_arglebargle);
+      Clear(proxy_class_arglebargle);
       Replaceall(proxy_class_code, "$haskellconstructor", proxy_class_haskell_constructor);
+      Clear(proxy_class_haskell_constructor);
 
       Printv(f_proxy, proxy_class_def, proxy_class_code, NIL);
 
@@ -2207,12 +2214,15 @@ public:
 
   // m: produces line like e.g. someProxyFun :: Int -> Int -> IO (Int)\n
   void proxyClassFunctionDeclarationHandler(Node* n, String* declaration) {
-    SwigType* t = Getattr(n, "type");
     ParmList* params = Getattr(n, "parms");
+    SwigType* t = Getattr(n, "type");
     String* im_fun = Getattr(n, "imfuncname");
     String* proxy_fun = Getattr(n, "proxyfuncname");
 
     Printf(declaration, "  -- (proxyClassFunctionDeclarationHandler %s for %s)\n", proxy_fun, im_fun);
+
+    Swig_typemap_attach_parms("hstype", params, 0);
+
 
     // m: start of the fun def
     // m: need to get used to abbreviating functions as 'fun'. heheh.
@@ -2222,7 +2232,8 @@ public:
     // m: (fwiw, i do admire swig's adherence to making module writers' lives as easy as possible by exposing
     //      a C-like way of doing things, but i did just try to do par = par->nextSibling() right there.)
     for (Parm* par = params; par; par = nextSibling(par)) {
-      SwigType* type = Getattr(par, "type");
+      //SwigType* type = Getattr(par, "type");
+      SwigType* type = Getattr(par, "tmap:hstype");
       String* name = Getattr(par, "name");
       String* val = Getattr(par, "value");
 
@@ -2238,7 +2249,7 @@ public:
     }
 
     // m: ...aaand now the return type.
-    Printf(declaration, "IO %s", t);
+    Printf(declaration, "IO %s", Swig_typemap_lookup("hstype", n, "ihatelnames", 0));
 
     Printf(declaration, "\n");
 
@@ -2306,8 +2317,8 @@ public:
     //Printf(definition, "-- Lol todo.");
 
 
-    Printf(proxy_class_arglebargle, "lambda_proto_%s ", proxy_fun);
-    Printf(proxy_class_haskell_constructor, "        lambda_proto_%s = proto_%s objptr", proxy_fun);
+    Printf(proxy_class_arglebargle, "(lambda_proto_%s) ", proxy_fun);
+    Printf(proxy_class_haskell_constructor, "        lambda_proto_%s = proto_%s objptr\n", proxy_fun, proxy_fun);
 
   }
 
