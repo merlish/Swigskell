@@ -1807,6 +1807,21 @@ public:
     Delete(baseclass);
   }
 
+  virtual File* startProxyClassHandler(Node *n) {
+    File *f_proxy = NULL;
+
+    proxy_class_name = NewString(Getattr(n, "sym:name"));
+
+
+
+
+
+  }
+
+  virtual int endProxyClassHandler(Node *n, File *f_proxy) {
+
+  }
+
   /* ----------------------------------------------------------------------
    * classHandler()
    * ---------------------------------------------------------------------- */
@@ -1818,19 +1833,23 @@ public:
     if (proxy_flag) {
       proxy_class_name = NewString(Getattr(n, "sym:name"));
 
-      if (!nspace) {
+      /*if (!nspace) {
+        printf("!nspace path\n");
+
 	full_proxy_class_name = NewStringf("%s", proxy_class_name);
 	full_imclass_name = NewStringf("%s", imclass_name);
 	if (Cmp(proxy_class_name, imclass_name) == 0) {
 	  Printf(stderr, "Class name cannot be equal to intermediary class name: %s\n", proxy_class_name);
-	  SWIG_exit(EXIT_FAILURE);
+      SWIG_exit(EXIT_FAILURE);
 	}
 
 	if (Cmp(proxy_class_name, module_class_name) == 0) {
 	  Printf(stderr, "Class name cannot be equal to module class name: %s\n", proxy_class_name);
 	  SWIG_exit(EXIT_FAILURE);
-	}
+    }
       } else {
+        printf("!i can has nspace == yes\n");
+
 	if (namespce) {
 	  full_proxy_class_name = NewStringf("%s.%s.%s", namespce, nspace, proxy_class_name);
 	  full_imclass_name = NewStringf("%s.%s", namespce, imclass_name);
@@ -1838,7 +1857,10 @@ public:
 	  full_proxy_class_name = NewStringf("%s.%s", nspace, proxy_class_name);
 	  full_imclass_name = NewStringf("%s", imclass_name);
 	}
-      }
+     }*/
+
+     full_proxy_class_name = NewStringf("%s", proxy_class_name);
+     full_imclass_name = NewStringf("%s", imclass_name);
 
       if (!addSymbol(proxy_class_name, n, nspace))
 	return SWIG_ERROR;
