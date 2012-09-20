@@ -1468,13 +1468,40 @@ public:
   virtual int constructorHandler(Node *n) {
     Language::constructorHandler(n);
 
-    //for (Parm* par = Getattr(n, "parms"); 
-
-    if (proxy_flag) {
-      Printf(proxy_class_code, "-- TODO: constructorHandler()\n");
-    }
+    proxyConstructorHandler(n); //, f_proxy);
+    
 
     return SWIG_OK;
+  }
+
+  void proxyConstructorHandler(Node *n) { //, File *f_proxy) {
+    String *f_proxy = proxy_class_code;
+    ParmList *parms = Getattr(n, "parms");
+
+    Swig_typemap_attach_parms("hsmap", parms, 0);
+
+    // TODO: disambiguate multiple constructors w/diff names
+
+    // type declaration (like 'newCat :: String -> IO Cat')
+    Printf(f_proxy, "new%s :: ", proxy_class_name);
+    for (Parm* par = Getattr(n, "parms"); par; par = nextSibling(par)) {
+      Printf(f_proxy, "%s -> ", Getattr(par, "tmap:hstype"));
+      Printf(stdout, "CTOR:: type is %s", Getattr(par, "type"));
+    }
+    Printf(f_proxy, "IO %s\n", proxy_class_name);
+
+    // 'newCat p0 = do
+    //    constructCatRecord (c_new_Cat p0)'
+    Printf(f_proxy, "new%s ", proxy_class_name);
+    for (int i = 0; i < ParmList_len(parms); i++) {
+      Printf(f_proxy, "p%d ", i);
+    }
+    Printf(f_proxy, "= do\n");
+    Printf(f_proxy, "  construct%sRecord (c_new_%s", proxy_class_name, proxy_class_name);
+    for (int i = 0; i < ParmList_len(parms); i++) {
+      Printf(f_proxy, " p%d", i);
+    }
+    Printf(f_proxy, ")\n");
   }
 
   /* ----------------------------------------------------------------------
