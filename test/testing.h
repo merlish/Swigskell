@@ -27,6 +27,7 @@ namespace TestingCpp
   {
     public:
       NamedDog(char* n);
+      char* unrelatedField;
   };
 
   class Cat : public Animal
