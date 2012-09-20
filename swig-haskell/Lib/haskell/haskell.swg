@@ -26,7 +26,7 @@
 %typemap(imtype) char*, char[] "CString"
 
 /* intermediate class: any non-primitive type -> Foreign.Ptr.Ptr */
-%typemap(imtype) SWIGTYPE "Ptr"
+%typemap(imtype) SWIGTYPE "WordPtr"
 
 /* intermediate class: a non-pointer void is just a pair of empty brackets. :) */
 %typemap(imtype) void "()"
@@ -35,3 +35,10 @@
 %typemap(hstype) char*, char[] "String"
 %typemap(hstype) void "()"
 
+
+/* hstype <-> imtype conv helper funcs */
+%typemap(hsconvname) String_CString "tconvStringToCString"
+%typemap(hsconvimpl) tconvStringToCString {
+  tconvStringToCString :: String -> IO CString
+  tconvStringToCString = newCString
+}
