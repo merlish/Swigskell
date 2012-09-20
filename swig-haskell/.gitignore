@@ -4,6 +4,7 @@ config.log
 config.status
 CCache/ccache_swig_config.h
 CCache/config.h
+CCache/ccache-swig.exe
 Lib/ocaml/swigp4.ml
 Source/Include/stamp-h1
 Source/Include/swigconfig.h
@@ -13,6 +14,13 @@ swig.spec
 CCache/ccache-swig
 .dirstamp
 Source/eswig
+Source/eswig.exe
 swig
 autom4te.cache
 *.in~
+Debug/
+Source/swigskellproject*
+pcre/
+pcre*.tar.*
+swig.exe
+*.suo
