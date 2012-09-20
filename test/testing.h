@@ -23,6 +23,12 @@ namespace TestingCpp
       int _hoarseness;
   };
 
+  class NamedDog : public Dog
+  {
+    public:
+      NamedDog(char* n);
+  };
+
   class Cat : public Animal
   {
     public:

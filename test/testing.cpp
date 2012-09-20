@@ -13,6 +13,11 @@ Animal::Animal(char* n) { this->setName(n); }
 Dog::Dog() : Animal::Animal("unnamed dog") { this->_hoarseness = 0; }
 Cat::Cat() : Animal::Animal("unnamed cat") {}
 
+NamedDog::NamedDog(char* na) : Dog::Dog()
+{
+  this->setName(na);
+}
+
 void Dog::bark()
 {
   this->_hoarseness -= 4;
