@@ -1121,8 +1121,8 @@ public:
 	   typemapLookup(n, "csbody", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF),	// main body of class
        NIL);
 
-    Printf(proxy_class_def, "-- TODO: emit destructor");
-    Printf(proxy_class_code, "-- TOOD: emit destructor");
+    Printf(proxy_class_def, "-- TODO: emit destructor\n\n");
+    Printf(proxy_class_code, "-- TOOD: emit destructor\n\n");
 
     // Emit extra user code
     //Printv(proxy_class_def, typemapLookup(n, "cscode", typemap_lookup_type, WARN_NONE),	// extra C# code
@@ -1131,6 +1131,49 @@ public:
     // m: Not doing upcast methods, because I think we can make the resulting Haskell types actually castable properly.
     //    (bwim: for c#, if the c++ Cat class inherits from the c++ Animal class, it is NOT possible to do a c# cast from the
     //            c# Cat class to the c# Animal class.  i guess due to multiple inheritance problems...?)
+  }
+
+  void proxyClassRecordConstructionHandler(Node *n, File *f_proxy) {
+    String *classname = SwigType_namestr(Getattr(n, "name"));
+
+    /*constructAnimalRecord this = Animal (a1 this) (a2 this) 
+        where a1 = impl_Animal_setName this 
+              a2 = impl_Animal_getName this */
+
+    // Go through the list of methods in the node, and produce something
+    //  like the output above.
+
+    Printf(f_proxy, "construct%sRecord this = %s", proxy_class_name, proxy_class_name);
+
+    List *functions = NewList();
+    for (Node *s = firstChild(n); s; s = nextSibling(s)) {
+      if (SwigType_isfunction(Getattr(s, "decl")) && Getattr(s, "proxyfuncname")) {
+        Append(functions, s);
+      }
+    }
+
+    // e.g. if there are three functions, then produce ' a0 a1 a2'.
+    for (int i = 0; i < Len(functions); i++) {
+      Printf(f_proxy, " a%d", i);
+    }
+
+    // This produces the 'where a1 = impl_Animal_setName this' kind of lines.
+    int i = 0;
+    for (int i = 0; i < Len(functions); i++) {
+      Node *fun = Getitem(functions, i);
+
+      if (i == 0) {
+        Printf(f_proxy, "\n  where ");
+      } else {
+        Printf(f_proxy, ",\n        ");
+      }
+
+      Printf(f_proxy, "a%d = impl_%s_%s this", i, proxy_class_name, Getattr(fun, "proxyfuncname"));
+    }
+
+    Delete(functions);
+
+    Printf(f_proxy, "\n\n");
   }
 
   virtual File* startProxyClassHandler(Node *n) {
@@ -1207,6 +1250,8 @@ public:
     if (Len(proxy_class_constants_code) != 0)
       Printv(f_proxy, proxy_class_constants_code, NIL);
 
+    proxyClassRecordConstructionHandler(n, f_proxy);
+
     Printf(f_proxy, "}\n");
     addCloseNamespace(nspace, f_proxy);
     Close(f_proxy);
@@ -1234,15 +1279,13 @@ public:
 
     File *f_proxy = NULL;
 
-    if (proxy_flag) {
-      f_proxy = startProxyClassHandler(n);
-    }
+    f_proxy = startProxyClassHandler(n);
 
     Language::classHandler(n);
 
-    if (proxy_flag) {
-      endProxyClassHandler(n, f_proxy);
-    }
+
+    endProxyClassHandler(n, f_proxy);
+
 
     return SWIG_OK;
   }
@@ -1372,11 +1415,7 @@ public:
 
     String* protoargline = NewString(" ");
 
-    printf("attaching hstype\n");
-
     Swig_typemap_attach_parms("hstype", params, 0);
-
-    printf("counting params\n");
 
     // m: counting the parameters and adding an argument to the haskell func for each one
     int argnum = 0;
@@ -1386,29 +1425,22 @@ public:
       argnum++;
     }
 
-    printf("doing thing\n");
-
     Printf(srzzygzzy, "-- (proxyClassFunctionDefinitionHandler %s for %s)\n", proxy_fun, im_fun);
 
 
-    printf("being nice\n");
-
     // m: it's nice to explicitly write down the type.
-    Printf(srzzygzzy, "proto_%s :: Ptr -> ", proxy_fun);
+    Printf(srzzygzzy, "impl_%s_%s :: Ptr -> ", proxy_class_name, proxy_fun);
 
     for (Parm* par = params; par; par = nextSibling(par)) {
-      printf("getattr impending\n");
       Printf(srzzygzzy, "%s -> ", Getattr(par, "tmap:hstype"));
     }
-
-    printf("get return type\n");
 
     Printf(srzzygzzy, "IO %s\n", Swig_typemap_lookup("hstype", n, "ihatelnames", 0));
 
 
     printf("building proto\n");
 
-    Printf(srzzygzzy, "proto_%s this%s= do\n", proxy_fun, protoargline);
+    Printf(srzzygzzy, "impl_%s_%s this%s= do\n", proxy_class_name, proxy_fun, protoargline);
     Printf(srzzygzzy, "  %s this ", "$magifuncnametodo");
 
     // m: need to convert each arg before passing to the func that actually does the work.
@@ -1435,6 +1467,8 @@ public:
 
   virtual int constructorHandler(Node *n) {
     Language::constructorHandler(n);
+
+    //for (Parm* par = Getattr(n, "parms"); 
 
     if (proxy_flag) {
       Printf(proxy_class_code, "-- TODO: constructorHandler()\n");
