@@ -252,6 +252,8 @@ public:
 
       addOpenNamespace(0, f_im);
 
+      Printf(f_im, "import Foreign.Ptr\nimport Foreign.C\n\n");
+
       if (imclass_imports)
       {
         Printf(f_im, "-- todo: valid haskell for imports\n");
@@ -568,7 +570,7 @@ protected:
 
     // start outputting the import
     Printf(output, "foreign import ccall \"%s\"\n", symname);
-    Printf(output, "  c_%s_%s :: ", imclass_name, overloadedname);
+    Printf(output, "  c_%s :: ", overloadedname);
 
     // now we need to output the appropriate types!
 
@@ -1106,13 +1108,13 @@ public:
     Printf(proxy_class_def, "-- (inheritance, interfaces not supported yet)\n");
 
     // m: this needs to go elsewhere.  not refactoring until i understand the function, though.
-    Printf(proxy_class_code, "create$csclassname :: IO ($csclassname)\n");
+    /*Printf(proxy_class_code, "create$csclassname :: IO ($csclassname)\n");
     Printf(proxy_class_code, "create$csclassname = $csclassname $arglebargle\n");
     Printf(proxy_class_code, "  where placeholder0idonotunderstandhaskelllininguprules = ()\n");
     Printf(proxy_class_code, "$haskellconstructor\n");
     //Clear(proxy_class_arglebargle);
     //Clear(proxy_class_haskell_constructor);
-    Printf(proxy_class_haskell_constructor, "  where placeholder0idonotunderstandhaskelllininguprules = ()\n");
+    Printf(proxy_class_haskell_constructor, "  where placeholder0idonotunderstandhaskelllininguprules = ()\n");*/
 
     // m: hi there!
     Printv(proxy_class_def, //typemapLookup(n, "csclassmodifiers", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CLASSMOD_UNDEF),	// Class modifiers
@@ -1194,11 +1196,12 @@ public:
     f_proxy = NewFile(filen, "w", SWIG_output_files());
     Printf(f_proxy, "-- Class Handler file for ", proxy_class_name, "\n");
 
-
     // Start writing out the proxy class file
     emitBanner(f_proxy);
 
     addOpenNamespace(nspace, f_proxy);
+
+    Printf(f_proxy, "import Foreign.Ptr\nimport Foreign.C\n\n");
 
     Clear(proxy_class_def);
     Clear(proxy_class_code);
@@ -1206,7 +1209,7 @@ public:
     destructor_call = NewString("");
     proxy_class_constants_code = NewString("");
 
-    Printf(proxy_class_def, "type $csclassname = $csclassname {\n");
+    Printf(proxy_class_def, "data $csclassname = $csclassname {\n");
 
     return f_proxy;
   }
@@ -1252,7 +1255,6 @@ public:
 
     proxyClassRecordConstructionHandler(n, f_proxy);
 
-    Printf(f_proxy, "}\n");
     addCloseNamespace(nspace, f_proxy);
     Close(f_proxy);
     f_proxy = NULL;
@@ -1416,12 +1418,13 @@ public:
     String* protoargline = NewString(" ");
 
     Swig_typemap_attach_parms("hstype", params, 0);
+    Swig_typemap_attach_parms("imtype", params, 0);
 
     // m: counting the parameters and adding an argument to the haskell func for each one
     int argnum = 0;
     for (Parm* par = params; par; par = nextSibling(par)) {
       // add to the func definition, so we can explicitly capture this argument
-      Printf(protoargline, "a%s ", argnum);
+      Printf(protoargline, "a%d ", argnum);
       argnum++;
     }
 
@@ -1429,30 +1432,33 @@ public:
 
 
     // m: it's nice to explicitly write down the type.
-    Printf(srzzygzzy, "impl_%s_%s :: Ptr -> ", proxy_class_name, proxy_fun);
+    Printf(srzzygzzy, "impl_%s_%s :: WordPtr -> ", proxy_class_name, proxy_fun);
 
     for (Parm* par = params; par; par = nextSibling(par)) {
       Printf(srzzygzzy, "%s -> ", Getattr(par, "tmap:hstype"));
     }
 
     Printf(srzzygzzy, "IO %s\n", Swig_typemap_lookup("hstype", n, "ihatelnames", 0));
+    
 
 
-    printf("building proto\n");
 
     Printf(srzzygzzy, "impl_%s_%s this%s= do\n", proxy_class_name, proxy_fun, protoargline);
-    Printf(srzzygzzy, "  %s this ", "$magifuncnametodo");
+    Printf(srzzygzzy, "  c_%s_%s this ", proxy_class_name, proxy_fun);
 
     // m: need to convert each arg before passing to the func that actually does the work.
     argnum = 0;
     for (Parm* par = params; par; par = nextSibling(par)) {
-      //Printf(srzzygzzy, "(swig_convert_towards_cpp \"%s\"
-      Printf(srzzygzzy, "-- TODO a%s", argnum);
-
+      String *convtype = NewStringf("%s_%s", Getattr(par, "tmap:hstype"), Getattr(par, "tmap:imtype"));
+      Printf(stdout, "- about to lookup %s\n", convtype);
+      Printf(stdout, "- found '%s'\n", typemapLookup(par, "hsconvname", convtype, 0));
+      Printf(srzzygzzy, "(%s a%d)", typemapLookup(par, "hsconvname", convtype, 0), argnum);
+      Delete(convtype);
       argnum++;
     }
 
-    Printf(srzzygzzy, "\n  (your_class_name_here! yeah!! (reconstructor??)) \n");
+    Printf(srzzygzzy, "\n\n");
+
     //Printf(definition, "-- Lol todo.");
 
 
@@ -1478,7 +1484,7 @@ public:
     String *f_proxy = proxy_class_code;
     ParmList *parms = Getattr(n, "parms");
 
-    Swig_typemap_attach_parms("hsmap", parms, 0);
+    Swig_typemap_attach_parms("hstype", parms, 0);
 
     // TODO: disambiguate multiple constructors w/diff names
 
@@ -1494,7 +1500,12 @@ public:
     //    constructCatRecord (c_new_Cat p0)'
     Printf(f_proxy, "new%s ", proxy_class_name);
     for (int i = 0; i < ParmList_len(parms); i++) {
-      Printf(f_proxy, "p%d ", i);
+      /*Parm* par = Getitem(parms, i);
+      String *convtype = NewStringf("%s_%s", Getattr(par, "tmap:hstype"), Getattr(par, "tmap:imtype"));*/
+      Printf(f_proxy, "p%d ", i);      /*Printf(stdout, "- about to lookup %s\n", convtype);
+      Printf(stdout, "- found '%s'\n", typemapLookup(par, "hsconvname", convtype, 0));
+      Printf(f_proxy, "(%s p%d)", typemapLookup(par, "hsconvname", convtype, 0), i);
+      Delete(convtype);*/
     }
     Printf(f_proxy, "= do\n");
     Printf(f_proxy, "  construct%sRecord (c_new_%s", proxy_class_name, proxy_class_name);
