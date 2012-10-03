@@ -567,10 +567,11 @@ protected:
   int intermediateFunctionWrapper(Node* n, String* output) {
     String* symname = Getattr(n, "sym:name");
     String* overloadedname = getOverloadedName(n);
+    String* proxyfuncname = Getattr(n, "name");
 
     // start outputting the import
-    Printf(output, "foreign import ccall \"%s\"\n", symname);
-    Printf(output, "  c_%s :: ", overloadedname);
+    Printf(output, "  foreign import ccall \"%s\"\n", symname);
+    Printf(output, "    %s :: ", proxyfuncname);
 
     // now we need to output the appropriate types!
 
@@ -643,9 +644,12 @@ public:
         return SWIG_ERROR;
     }
 
+    Setattr(n, "proxyfuncname", symname);
 
     // m
     intermediateFunctionWrapper(n, imclass_class_code);
+
+    //proxyClassFunctionHandler(n);
 
     /*
        The rest of this function deals with generating the intermediary class wrapper function (that wraps
@@ -948,6 +952,8 @@ public:
 
       proxyClassFunctionHandler(n);
       Delete(getter_setter_name);
+    } else {
+      proxyClassFunctionHandler(n);
     }
 
     Delete(c_return_type);
@@ -1192,8 +1198,10 @@ public:
         return SWIG_ERROR;
     }
 
-    String *filen = NewStringf("%s.hs", proxy_class_name);
-    f_proxy = NewFile(filen, "w", SWIG_output_files());
+    //String *filen = NewStringf("%s.hs", proxy_class_name);
+    //f_proxy = NewFile(filen, "w", SWIG_output_files());
+
+    f_proxy = imclass_class_code;
     Printf(f_proxy, "-- Class Handler file for ", proxy_class_name, "\n");
 
     // Start writing out the proxy class file
@@ -1203,13 +1211,15 @@ public:
 
     Printf(f_proxy, "import Foreign.Ptr\nimport Foreign.C\n\n");
 
+    Printf(f_proxy, "module %s where\n\n");
+
     Clear(proxy_class_def);
     Clear(proxy_class_code);
 
     destructor_call = NewString("");
     proxy_class_constants_code = NewString("");
 
-    Printf(proxy_class_def, "data $csclassname = $csclassname {\n");
+    //Printf(proxy_class_def, "data $csclassname = $csclassname {\n");
 
     return f_proxy;
   }
@@ -1253,7 +1263,7 @@ public:
     if (Len(proxy_class_constants_code) != 0)
       Printv(f_proxy, proxy_class_constants_code, NIL);
 
-    proxyClassRecordConstructionHandler(n, f_proxy);
+    //proxyClassRecordConstructionHandler(n, f_proxy);
 
     addCloseNamespace(nspace, f_proxy);
     Close(f_proxy);
@@ -1304,7 +1314,7 @@ public:
       String *intermediary_function_name = Swig_name_member(getNSpace(), proxy_class_name, overloaded_name);
       Setattr(n, "proxyfuncname", Getattr(n, "sym:name"));
       Setattr(n, "imfuncname", intermediary_function_name);
-      proxyClassFunctionHandler(n);
+      //proxyClassFunctionHandler(n);
       Delete(overloaded_name);
     }
     return SWIG_OK;
@@ -1353,8 +1363,8 @@ public:
     String* declaration = NewString("");
     String* definition = NewString("");
 
-    proxyClassFunctionDeclarationHandler(n, declaration);
-    proxyClassFunctionDefinitionHandler(n, definition);
+    //proxyClassFunctionDeclarationHandler(n, declaration);
+    //proxyClassFunctionDefinitionHandler(n, definition);
 
     Printf(proxy_class_code, "%s", definition);
     Printf(proxy_class_def, "%s", declaration);
@@ -1364,7 +1374,7 @@ public:
     Delete(definition);
   }
 
-  // m: produces line like e.g. someProxyFun :: Int -> Int -> IO (Int)\n
+  // m: produces line like e.g. someProxyFun :: WhateverPtr -> Int -> Int -> IO (Int)\n
   void proxyClassFunctionDeclarationHandler(Node* n, String* declaration) {
     ParmList* params = Getattr(n, "parms");
     SwigType* t = Getattr(n, "type");
@@ -1378,7 +1388,7 @@ public:
 
     // m: start of the fun def
     // m: need to get used to abbreviating functions as 'fun'. heheh.
-    Printf(declaration, "  %s :: ", proxy_fun);
+    Printf(declaration, "  %s :: WhateverPtr -> ", proxy_fun);
 
     // m: troll through each arg, outputting equivalent Haskell type (if we know of one).
     // m: (fwiw, i do admire swig's adherence to making module writers' lives as easy as possible by exposing
@@ -1415,39 +1425,92 @@ public:
     String* im_fun = Getattr(n, "imfuncname");
     String* proxy_fun = Getattr(n, "proxyfuncname");
 
+    String* symname = Getattr(n, "sym:name");
+
+    /*    String* symname = Getattr(n, "sym:name");
+    String* overloadedname = getOverloadedName(n);
+
+    // start outputting the import
+    Printf(output, "foreign import ccall \"%s\"\n", symname);
+    Printf(output, "  c_%s :: ", overloadedname);
+
+    // now we need to output the appropriate types!
+
+    ParmList* params = Getattr(n, "parms");
+
+    Swig_typemap_attach_parms("imtype", params, 0);
+
+
+    // Let's do the arguments.
+
+    // The C#'s typemap lets any number of input parameters become any number of output parameters.
+    // We'll just be inflexible and assume a 1:1 mapping.  (So we can ignore emit_num_arguments etc.)
+
+    for (Parm* p = params; p; p = nextSibling(p)) {
+      String* tm = Getattr(p, "tmap:imtype");
+
+      if (tm) {
+        // TODO: tmap:imtype:inattributes
+        Printf(output, "%s -> ", tm);
+      } else {
+        Swig_warning(WARN_CSHARP_TYPEMAP_CSTYPE_UNDEF, input_file, line_number, "No imtype typemap defined for %s\n", SwigType_str(Getattr(p, "type"), 0));
+      }
+    }
+
+    // And, finally, the return type.
+
+    String* returnType = Swig_typemap_lookup("imtype", n, "", 0);
+
+    if (returnType) {
+      // from the c# code: if the type in (imtype typemap)'s out attribute exists, it should override the above type.
+      // (I don't understand why yet.)
+      // TODO: tmap:imtype:outattributes
+
+      String* imtypeout = Getattr(n, "tmap:imtype:out");
+      if (imtypeout) {
+        returnType = imtypeout;
+      }
+    } else {
+      Swig_warning(WARN_CSHARP_TYPEMAP_CSTYPE_UNDEF, input_file, line_number, "No imtype typemap defined for %s\n", SwigType_str(Getattr(n, "type"), 0));
+
+      // TODO: do something better here?? Just assuming the func returns nothing is probably a bad plan.
+    }
+
+    Printf(output, "IO %s\n", returnType ? returnType : empty_string);*/
+
     String* protoargline = NewString(" ");
 
     Swig_typemap_attach_parms("hstype", params, 0);
     Swig_typemap_attach_parms("imtype", params, 0);
 
     // m: counting the parameters and adding an argument to the haskell func for each one
-    int argnum = 0;
+    /*int argnum = 0;
     for (Parm* par = params; par; par = nextSibling(par)) {
       // add to the func definition, so we can explicitly capture this argument
       Printf(protoargline, "a%d ", argnum);
       argnum++;
-    }
+    }*/
 
     Printf(srzzygzzy, "-- (proxyClassFunctionDefinitionHandler %s for %s)\n", proxy_fun, im_fun);
 
 
-    // m: it's nice to explicitly write down the type.
-    Printf(srzzygzzy, "impl_%s_%s :: WordPtr -> ", proxy_class_name, proxy_fun);
+    Printf(srzzygzzy, "  foreign import ccall \"%s\"\n", symname);
+    Printf(srzzygzzy, "    %s :: WhateverPtr -> ", proxy_fun);
 
     for (Parm* par = params; par; par = nextSibling(par)) {
-      Printf(srzzygzzy, "%s -> ", Getattr(par, "tmap:hstype"));
+      Printf(srzzygzzy, "%s -> ", Getattr(par, "tmap:imtype"));
     }
 
-    Printf(srzzygzzy, "IO %s\n", Swig_typemap_lookup("hstype", n, "ihatelnames", 0));
+    Printf(srzzygzzy, "IO %s\n", Swig_typemap_lookup("imtype", n, "ihatelnames", 0));
     
 
 
 
-    Printf(srzzygzzy, "impl_%s_%s this%s= do\n", proxy_class_name, proxy_fun, protoargline);
-    Printf(srzzygzzy, "  c_%s_%s this ", proxy_class_name, proxy_fun);
+    /*Printf(srzzygzzy, "%s this%s= do\n", proxy_fun, protoargline);
+    Printf(srzzygzzy, "  c_%s_%s this ", proxy_class_name, proxy_fun);*/
 
     // m: need to convert each arg before passing to the func that actually does the work.
-    argnum = 0;
+    /*int argnum = 0;
     for (Parm* par = params; par; par = nextSibling(par)) {
       String *convtype = NewStringf("%s_%s", Getattr(par, "tmap:hstype"), Getattr(par, "tmap:imtype"));
       Printf(stdout, "- about to lookup %s\n", convtype);
@@ -1455,7 +1518,7 @@ public:
       Printf(srzzygzzy, "(%s a%d)", typemapLookup(par, "hsconvname", convtype, 0), argnum);
       Delete(convtype);
       argnum++;
-    }
+    }*/
 
     Printf(srzzygzzy, "\n\n");
 
@@ -1484,35 +1547,35 @@ public:
     String *f_proxy = proxy_class_code;
     ParmList *parms = Getattr(n, "parms");
 
-    Swig_typemap_attach_parms("hstype", parms, 0);
+    String* symname = Getattr(n, "sym:name");
+
+    Swig_typemap_attach_parms("imtype", parms, 0);
 
     // TODO: disambiguate multiple constructors w/diff names
 
-    // type declaration (like 'newCat :: String -> IO Cat')
-    Printf(f_proxy, "new%s :: ", proxy_class_name);
+    // foreign c import
+    Printf(f_proxy, "  foreign import ccall \"%s\"\n", symname);
+
+    // type declaration (like '    new :: String -> IO Cat')
+    Printf(f_proxy, "    new :: ");
     for (Parm* par = Getattr(n, "parms"); par; par = nextSibling(par)) {
-      Printf(f_proxy, "%s -> ", Getattr(par, "tmap:hstype"));
+      Printf(f_proxy, "%s -> ", Getattr(par, "tmap:imtype"));
       Printf(stdout, "CTOR:: type is %s", Getattr(par, "type"));
     }
-    Printf(f_proxy, "IO %s\n", proxy_class_name);
+    //Printf(f_proxy, "IO %s\n", proxy_class_name);
+    Printf(f_proxy, "IO WhateverPtr\n");
 
-    // 'newCat p0 = do
+    /*// 'newCat p0 = do
     //    constructCatRecord (c_new_Cat p0)'
     Printf(f_proxy, "new%s ", proxy_class_name);
     for (int i = 0; i < ParmList_len(parms); i++) {
-      /*Parm* par = Getitem(parms, i);
-      String *convtype = NewStringf("%s_%s", Getattr(par, "tmap:hstype"), Getattr(par, "tmap:imtype"));*/
-      Printf(f_proxy, "p%d ", i);      /*Printf(stdout, "- about to lookup %s\n", convtype);
-      Printf(stdout, "- found '%s'\n", typemapLookup(par, "hsconvname", convtype, 0));
-      Printf(f_proxy, "(%s p%d)", typemapLookup(par, "hsconvname", convtype, 0), i);
-      Delete(convtype);*/
-    }
+      Printf(f_proxy, "p%d ", i);    }
     Printf(f_proxy, "= do\n");
     Printf(f_proxy, "  construct%sRecord (c_new_%s", proxy_class_name, proxy_class_name);
     for (int i = 0; i < ParmList_len(parms); i++) {
       Printf(f_proxy, " p%d", i);
     }
-    Printf(f_proxy, ")\n");
+    Printf(f_proxy, ")\n");*/
   }
 
   /* ----------------------------------------------------------------------
