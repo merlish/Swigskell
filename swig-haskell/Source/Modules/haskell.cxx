@@ -1202,16 +1202,16 @@ public:
     //f_proxy = NewFile(filen, "w", SWIG_output_files());
 
     f_proxy = imclass_class_code;
-    Printf(f_proxy, "-- Class Handler file for ", proxy_class_name, "\n");
+    Printf(f_proxy, "-- Class Handler file for %s\n");
 
     // Start writing out the proxy class file
-    emitBanner(f_proxy);
+    /*emitBanner(f_proxy);
 
     addOpenNamespace(nspace, f_proxy);
 
     Printf(f_proxy, "import Foreign.Ptr\nimport Foreign.C\n\n");
 
-    Printf(f_proxy, "module %s where\n\n");
+    Printf(f_proxy, "module %s where\n\n");*/
 
     Clear(proxy_class_def);
     Clear(proxy_class_code);
@@ -1292,6 +1292,8 @@ public:
     File *f_proxy = NULL;
 
     f_proxy = startProxyClassHandler(n);
+
+    Printf(imclass_class_code, "module %s where\n\n", Getattr(n, "sym:name"));
 
     Language::classHandler(n);
 
